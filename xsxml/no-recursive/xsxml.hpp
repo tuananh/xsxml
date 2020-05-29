@@ -943,6 +943,11 @@ struct xml_sax3_parse_cb
   std::function<void()> xml_end_attr_cb;
   std::function<void(const char* name, size_t)> xml_end_element_cb;
   std::function<void(const char* text, size_t len)> xml_text_cb;
+  std::function<void(const char* text, size_t len)> xml_cdata_cb;
+  std::function<void(const char* text, size_t)> xml_comment_cb;
+  std::function<void()> xml_start_document_cb;
+  std::function<void()> xml_end_document_cb;
+  std::function<void(const char* text, size_t)> xml_doctype_cb;
 };
 
 /////////////// xml_sax3_parser ///////////
@@ -1104,6 +1109,7 @@ struct xml_sax3_parser
       if (*s == '-') // '<!--...'
       {
         ++s;
+        auto mark = s; // move another - and then mark
 
         char_t* value = nullptr;
         if (XSXML__OPTSET(parse_comments))
@@ -1117,7 +1123,6 @@ struct xml_sax3_parser
         if (XSXML__OPTSET(parse_eol) && XSXML__OPTSET(parse_comments))
         {
           s = strconv_comment(s, endch);
-
           if (!s)
             XSXML__THROW_ERROR(status_bad_comment, value);
         }
@@ -1130,6 +1135,7 @@ struct xml_sax3_parser
           if (XSXML__OPTSET(parse_comments))
             *s = 0; // Zero-terminate this segment at the first terminating '-'.
 
+          handler->xml_comment_cb(mark, s - mark);
           s += (s[2] == '>' ? 3 : 2); // Step over the '\0->'.
         }
       }
@@ -1142,26 +1148,24 @@ struct xml_sax3_parser
       if (*++s == 'C' && *++s == 'D' && *++s == 'A' && *++s == 'T' && *++s == 'A' && *++s == '[')
       {
         ++s;
-
+        auto mark = s; // Save the offset
         if (XSXML__OPTSET(parse_cdata))
         {
           // SAX3: Ignore CDATA
           // XSXML__PUSHNODE(node_cdata); // Append a new node on the tree.
-          auto value = s; // Save the offset.
 
           if (XSXML__OPTSET(parse_eol))
           {
             s = strconv_cdata(s, endch);
 
             if (!s)
-              XSXML__THROW_ERROR(status_bad_cdata, value);
+              XSXML__THROW_ERROR(status_bad_cdata, mark);
           }
           else
           {
             // Scan for terminating ']]>'.
             XSXML__SCANFOR(s[0] == ']' && s[1] == ']' && XSXML__ENDSWITH(s[2], '>'));
             XSXML__CHECK_ERROR(status_bad_cdata, s);
-
             *s++ = 0; // Zero-terminate this segment.
           }
         }
@@ -1170,10 +1174,10 @@ struct xml_sax3_parser
           // Scan for terminating ']]>'.
           XSXML__SCANFOR(s[0] == ']' && s[1] == ']' && XSXML__ENDSWITH(s[2], '>'));
           XSXML__CHECK_ERROR(status_bad_cdata, s);
-
           ++s;
         }
-
+        // TODO(anh): why minus one here?
+        handler->xml_cdata_cb(mark, s - mark - 1);
         s += (s[1] == '>' ? 2 : 1); // Step over the last ']>'.
       }
       else
@@ -1187,11 +1191,14 @@ struct xml_sax3_parser
       // TODO: check for doctype, parent must be nullptr
       // if (cursor->parent) XSXML__THROW_ERROR(status_bad_doctype, s);
 
-      char_t* mark = s + 9;
+      // change from + 9 to + 10 because '<!DOCTYPE ' length is 10 (space after <!DOCTYPE)
+      char_t* mark = s + 10;
 
       s = parse_doctype_group(s, endch);
       if (!s)
         return s;
+
+      handler->xml_doctype_cb(mark, s - mark);
 
       assert((*s == 0 && endch == '>') || *s == '>');
       if (*s)
@@ -1356,6 +1363,7 @@ struct xml_sax3_parser
     {
       if (*s == '<')
       {
+        handler->xml_start_document_cb();
         ++s;
 
       LOC_TAG:
@@ -1605,6 +1613,7 @@ struct xml_sax3_parser
 
     // SAX3: TODO: check that last tag is closed,
     // if (cursor != root) XSXML__THROW_ERROR(status_end_element_mismatch, s);
+    handler->xml_end_document_cb();
 
     return s;
   }
