@@ -26,6 +26,7 @@ SOFTWARE.
 #pragma once
 #include <functional>
 #include <string>
+#include <cstring>
 #include <assert.h>
 
 #define XSXML__DECL inline
