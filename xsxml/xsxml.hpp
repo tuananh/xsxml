@@ -191,11 +191,9 @@ struct xml_sax3_parse_cb
   std::function<void()> xml_end_attr_cb;
   std::function<void(const char* text, size_t len)> xml_text_cb;
   std::function<void(const char* cdata, size_t)> xml_cdata_cb;
-
-  // TODO(anh): add more callbacks
   std::function<void(const char* text, size_t)> xml_comment_cb;
-  // std::function<void()> xml_start_document_cb;
-  // std::function<void()> xml_end_document_cb;
+  std::function<void()> xml_start_document_cb;
+  std::function<void()> xml_end_document_cb;
 };
 
 namespace internal
@@ -322,7 +320,7 @@ public:
   template <int Flags = parse_normal> void parse(char_t* text, int length)
   {
     assert(text);
-
+    handler_->xml_start_document_cb();
     // save last character and make buffer zero-terminated (speeds up parsing)
     auto endch       = text[length - 1];
     text[length - 1] = 0;
@@ -366,8 +364,9 @@ public:
       else
         XSXML__PARSE_ERROR("expected >", text);
     }
-  }
 
+    handler_->xml_end_document_cb();
+  }
   //! Clears the document by deleting all nodes and clearing the memory pool.
   //! All nodes owned by document pool are destroyed.
   void clear()
