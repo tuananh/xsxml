@@ -194,6 +194,7 @@ struct xml_sax3_parse_cb
   std::function<void(const char* text, size_t)> xml_comment_cb;
   std::function<void()> xml_start_document_cb;
   std::function<void()> xml_end_document_cb;
+  std::function<void(const char* text, size_t)> xml_doctype_cb;
 };
 
 namespace internal
@@ -808,6 +809,7 @@ private:
   // Parse DOCTYPE
   template <int Flags> void parse_doctype(char_t*& text)
   {
+    auto mark = text;
     // Skip to >
     while (*text != char_t('>'))
     {
@@ -857,12 +859,14 @@ private:
       if (!(Flags & parse_no_string_terminators))
         *text = char_t('\0');
 
+      handler_->xml_doctype_cb(mark, text - mark);
       text += 1; // skip '>'
 
       return; // return doctype;
     }
     else
     {
+      handler_->xml_doctype_cb(mark, text - mark);
       text += 1; // skip '>'
       return;    // return 0;
     }
