@@ -186,10 +186,16 @@ private:
 struct xml_sax3_parse_cb
 {
   std::function<void(char* name, size_t)> xml_start_element_cb;
+  std::function<void(const char* name, size_t)> xml_end_element_cb;
   std::function<void(const char* name, size_t, const char* value, size_t)> xml_attr_cb;
   std::function<void()> xml_end_attr_cb;
-  std::function<void(const char* name, size_t)> xml_end_element_cb;
   std::function<void(const char* text, size_t len)> xml_text_cb;
+  std::function<void(const char* cdata, size_t)> xml_cdata_cb;
+
+  // TODO(anh): add more callbacks
+  // std::function<void(const char* text, size_t)> xml_comment_cb;
+  // std::function<void()> xml_start_document_cb;
+  // std::function<void()> xml_end_document_cb;
 };
 
 namespace internal
@@ -960,6 +966,7 @@ private:
   // Parse CDATA
   template <int Flags> void parse_cdata(char_t*& text)
   {
+    auto mark = text;
     // If CDATA is disabled
     if (Flags & parse_no_data_nodes)
     {
@@ -970,6 +977,7 @@ private:
           XSXML__PARSE_ERROR("unexpected end of data", text);
         ++text;
       }
+      handler_->xml_cdata_cb(mark, text - mark);
       text += 3; // Skip ]]>
       return;    // return 0;       // Do not produce CDATA node
     }
@@ -986,6 +994,7 @@ private:
     if (!(Flags & parse_no_string_terminators))
       *text = char_t('\0');
 
+    handler_->xml_cdata_cb(mark, text - mark);
     text += 3; // Skip ]]>
     return;    // return cdata;
   }
