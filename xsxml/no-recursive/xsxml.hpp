@@ -28,6 +28,7 @@ SOFTWARE.
 #include <string>
 #include <cstring>
 #include <assert.h>
+#include <cstddef>
 
 #define XSXML__DECL inline
 
