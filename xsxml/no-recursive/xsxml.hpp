@@ -956,7 +956,7 @@ struct xml_sax3_parser
   xml_sax3_parse_cb* handler;
 
   xml_sax3_parser(xml_sax3_parse_cb* handler_)
-      : handler(handler_), error_offset(0), error_status(status_ok)
+      : error_offset(0), error_status(status_ok), handler(handler_)
   {}
 
   ~xml_sax3_parser()
