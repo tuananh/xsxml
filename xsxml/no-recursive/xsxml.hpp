@@ -916,12 +916,6 @@ XSXML__DECL strconv_attribute_t get_strconv_attribute(unsigned int optmask)
   }
 }
 
-// Skip utf-8 bom
-static char_t* parse_skip_bom(char_t* s)
-{
-  return (s[0] == '\xef' && s[1] == '\xbb' && s[2] == '\xbf') ? s + 3 : s;
-}
-
 // Simple string view
 class string_view
 {
