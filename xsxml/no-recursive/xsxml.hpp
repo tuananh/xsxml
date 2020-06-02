@@ -286,7 +286,8 @@ static const unsigned char chartypex_table[256] = {
     ++s;                                                                                           \
   }
 #define XSXML__THROW_ERROR(err, m)                                                                 \
-  return error_offset = m, error_status = err, static_cast<char_t*>(0)
+  return handler->xml_error_cb(err, m), error_offset = m, error_status = err,                      \
+                                        static_cast<char_t*>(0)
 #define XSXML__CHECK_ERROR(err, m)                                                                 \
   {                                                                                                \
     if (*s == 0)                                                                                   \
@@ -936,7 +937,7 @@ struct xml_sax3_parse_cb
 {
   std::function<void(char* name, size_t)> xml_start_element_cb;
   std::function<void(const char* name, size_t, const char* value, size_t)> xml_attr_cb;
-  std::function<void()> xml_end_attr_cb;    
+  std::function<void()> xml_end_attr_cb;
   std::function<void()> xml_start_document_cb;
   std::function<void(const char* name, size_t)> xml_end_element_cb;
   std::function<void(const char* text, size_t len)> xml_text_cb;
@@ -944,6 +945,7 @@ struct xml_sax3_parse_cb
   std::function<void(const char* text, size_t)> xml_comment_cb;
   std::function<void()> xml_end_document_cb;
   std::function<void(const char* text, size_t)> xml_doctype_cb;
+  std::function<void(xml_parse_status, char*)> xml_error_cb;
 };
 
 /////////////// xml_sax3_parser ///////////
