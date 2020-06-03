@@ -64,7 +64,8 @@ enum xml_parse_status
   status_append_invalid_root, // Unable to append nodes since root type is not node_element or
                               // node_document (exclusive to xml_node::append_buffer)
 
-  status_no_document_element // Parsing resulted in a document without element nodes
+  status_no_document_element, // Parsing resulted in a document without element nodes
+  status_bad_decl             // Parsing error occurred while parsing declaration
 };
 
 // Parsing options
@@ -946,7 +947,8 @@ struct xml_sax3_parse_cb
   std::function<void()> xml_end_document_cb;
   std::function<void(const char* text, size_t)> xml_doctype_cb;
   std::function<void(xml_parse_status, char*)> xml_error_cb;
-  std::function<void(const char* text, size_t)> xml_declaration_cb;
+  std::function<void(const char* name, size_t, const char* value, size_t)> xml_start_decl_attr_cb;
+  std::function<void()> xml_end_decl_attr_cb;
 };
 
 /////////////// xml_sax3_parser ///////////
@@ -1121,9 +1123,13 @@ struct xml_sax3_parser
 
         if (XSXML__OPTSET(parse_eol) && XSXML__OPTSET(parse_comments))
         {
+          XSXML__SCANFOR(s[0] == '-' && s[1] == '-' && XSXML__ENDSWITH(s[2], '>'));
+          XSXML__CHECK_ERROR(status_bad_comment, s);
+            
           s = strconv_comment(s, endch);
           if (!s)
             XSXML__THROW_ERROR(status_bad_comment, value);
+          handler->xml_comment_cb(mark, s - mark - 3); // skip last 3 char -->
         }
         else
         {
@@ -1134,7 +1140,6 @@ struct xml_sax3_parser
           if (XSXML__OPTSET(parse_comments))
             *s = 0; // Zero-terminate this segment at the first terminating '-'.
 
-          handler->xml_comment_cb(mark, s - mark);
           s += (s[2] == '>' ? 3 : 2); // Step over the '\0->'.
         }
       }
@@ -1281,17 +1286,83 @@ struct xml_sax3_parser
         // scan for tag end
         char_t* value = s;
 
-        XSXML__SCANFOR(s[0] == '?' && XSXML__ENDSWITH(s[1], '>'));
-        XSXML__CHECK_ERROR(status_bad_pi, s);
+        // XSXML__SCANFOR(s[0] == '?' && XSXML__ENDSWITH(s[1], '>'));
+        // XSXML__CHECK_ERROR(status_bad_pi, s);
 
         if (declaration)
         {
-          // replace ending ? with / so that 'element' terminates properly
-          *s = '/';
+          // this logic is pretty much the same as parse element attributes
+          // we could change the question mark to closing tag and call the same parse attr code?
+          // or we could just copy it down here
 
-          // we exit from this function with cursor at node_declaration, which is a signal to
-          // parse() to go to LOC_ATTRIBUTES
-          s = value;
+          while (true)
+          {
+            strconv_attribute_t strconv_attribute = get_strconv_attribute(optmsk);
+            XSXML__SKIPWS();                             // skip whitespace
+            if (XSXML__IS_CHARTYPE(*s, ct_start_symbol)) // <... #...
+            {
+              auto mark = s;
+              XSXML__SCANWHILE_UNROLL(XSXML__IS_CHARTYPE(ss, ct_symbol)); // Scan for a terminator.
+              auto n = s - mark;
+              XSXML__ENDSEG(); // Save char in 'ch', terminate & step over.
+              printf("name = %s\n", std::string(mark, n).c_str()); // got the name
+              if (XSXML__IS_CHARTYPE(ch, ct_space))
+              {
+                XSXML__SKIPWS(); // Eat any whitespace.
+
+                ch = *s;
+                ++s;
+              }
+
+              if (ch == '=') // '<... #=...'
+              {
+                XSXML__SKIPWS();             // Eat any whitespace.
+                if (*s == '"' || *s == '\'') // '<... #="...'
+                {
+                  ch = *s;   // Save quote char to avoid breaking on "''" -or- '""'.
+                  ++s;       // Step over the quote.
+                  value = s; // a->value = s; // Save the offset.
+
+                  s = strconv_attribute(s, ch);
+
+                  if (!s)
+                    XSXML__THROW_ERROR(status_bad_attribute, value);
+
+                  // got the value here
+                  printf("value = %s\n", std::string(value, s - value - 1).c_str());
+                  handler->xml_start_decl_attr_cb(mark, n, value, s - value - 1);
+
+                  // After this line the loop continues from the start;
+                  // Whitespaces, / and > are ok, symbols and EOF are wrong,
+                  // everything else will be detected
+                  if (XSXML__IS_CHARTYPE(*s, ct_start_symbol))
+                    XSXML__THROW_ERROR(status_bad_attribute, s);
+                  // handler->xml_attr_cb(mark, n, value, s - value - 1);
+                }
+              }
+            }
+            else if (*s == '?')
+            {
+              ++s;
+              break;
+            }
+            else if (*s == 0 && endch == '>')
+            {
+              handler->xml_end_decl_attr_cb();
+              break;
+            }
+            else
+            {
+              XSXML__THROW_ERROR(status_bad_decl, s);
+            }
+          }
+
+          // replace ending ? with / so that 'element' terminates properly
+          // *s = '/';
+
+          // // we exit from this function with cursor at node_declaration, which is a signal to
+          // // parse() to go to LOC_ATTRIBUTES
+          // s = value;
         }
         else
         {
@@ -1319,8 +1390,6 @@ struct xml_sax3_parser
 
     // store from registers
     // ref_cursor = cursor;
-    // TODO(anh): parse attribute in declaration
-    handler->xml_declaration_cb(target, s - target);
     return s;
   }
 
