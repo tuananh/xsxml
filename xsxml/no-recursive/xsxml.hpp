@@ -947,7 +947,7 @@ struct xml_sax3_parse_cb
   std::function<void()> xml_end_document_cb;
   std::function<void(const char* text, size_t)> xml_doctype_cb;
   std::function<void(xml_parse_status, char*)> xml_error_cb;
-  std::function<void(const char* name, size_t, const char* value, size_t)> xml_start_decl_attr_cb;
+  std::function<void(const char* name, size_t, const char* value, size_t)> xml_decl_attr_cb;
   std::function<void()> xml_end_decl_attr_cb;
 };
 
@@ -1305,7 +1305,6 @@ struct xml_sax3_parser
               XSXML__SCANWHILE_UNROLL(XSXML__IS_CHARTYPE(ss, ct_symbol)); // Scan for a terminator.
               auto n = s - mark;
               XSXML__ENDSEG(); // Save char in 'ch', terminate & step over.
-              printf("name = %s\n", std::string(mark, n).c_str()); // got the name
               if (XSXML__IS_CHARTYPE(ch, ct_space))
               {
                 XSXML__SKIPWS(); // Eat any whitespace.
@@ -1328,9 +1327,7 @@ struct xml_sax3_parser
                   if (!s)
                     XSXML__THROW_ERROR(status_bad_attribute, value);
 
-                  // got the value here
-                  printf("value = %s\n", std::string(value, s - value - 1).c_str());
-                  handler->xml_start_decl_attr_cb(mark, n, value, s - value - 1);
+                  handler->xml_decl_attr_cb(mark, n, value, s - value - 1);
 
                   // After this line the loop continues from the start;
                   // Whitespaces, / and > are ok, symbols and EOF are wrong,
@@ -1344,11 +1341,12 @@ struct xml_sax3_parser
             else if (*s == '?')
             {
               ++s;
+              ++s; // move pass 2 chars ?>
+              handler->xml_end_decl_attr_cb();
               break;
             }
             else if (*s == 0 && endch == '>')
             {
-              handler->xml_end_decl_attr_cb();
               break;
             }
             else
