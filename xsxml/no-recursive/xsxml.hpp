@@ -946,6 +946,7 @@ struct xml_sax3_parse_cb
   std::function<void()> xml_end_document_cb;
   std::function<void(const char* text, size_t)> xml_doctype_cb;
   std::function<void(xml_parse_status, char*)> xml_error_cb;
+  std::function<void(const char* text, size_t)> xml_declaration_cb;
 };
 
 /////////////// xml_sax3_parser ///////////
@@ -1318,7 +1319,8 @@ struct xml_sax3_parser
 
     // store from registers
     // ref_cursor = cursor;
-
+    // TODO(anh): parse attribute in declaration
+    handler->xml_declaration_cb(target, s - target);
     return s;
   }
 
