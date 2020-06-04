@@ -949,6 +949,7 @@ struct xml_sax3_parse_cb
   std::function<void(xml_parse_status, char*)> xml_error_cb;
   std::function<void(const char* name, size_t, const char* value, size_t)> xml_decl_attr_cb;
   std::function<void()> xml_end_decl_attr_cb;
+  std::function<void(const char* target, size_t, const char* data, size_t)> xml_pi_cb;
 };
 
 /////////////// xml_sax3_parser ///////////
@@ -1125,7 +1126,7 @@ struct xml_sax3_parser
         {
           XSXML__SCANFOR(s[0] == '-' && s[1] == '-' && XSXML__ENDSWITH(s[2], '>'));
           XSXML__CHECK_ERROR(status_bad_comment, s);
-            
+
           s = strconv_comment(s, endch);
           if (!s)
             XSXML__THROW_ERROR(status_bad_comment, value);
@@ -1277,6 +1278,14 @@ struct xml_sax3_parser
           XSXML__THROW_ERROR(status_bad_pi, s);
         s += (*s == '>');
 
+        if (declaration)
+        {
+          handler->xml_end_decl_attr_cb();
+        }
+        else
+        {
+          handler->xml_pi_cb(target, s - target - 1, s, 0);
+        }
         // XSXML__POPNODE();
       }
       else if (XSXML__IS_CHARTYPE(ch, ct_space))
@@ -1368,8 +1377,25 @@ struct xml_sax3_parser
           // cursor->value = value;
 
           // XSXML__POPNODE();
+          XSXML__SKIPWS();
+          if (XSXML__IS_CHARTYPE(*s, ct_start_symbol)) // <... #...
+          {
+            auto mark = s;
+            // scan to the end
+            XSXML__SCANFOR(s[0] == '?' && XSXML__ENDSWITH(s[1], '>'));
+            XSXML__CHECK_ERROR(status_bad_pi, s);
 
-          XSXML__ENDSEG();
+            s += (s[1] == '>' ? 2 : 1);
+            handler->xml_pi_cb(target, mark - target - 1, mark, s - mark - 1);
+          }
+          else if (*s == '?')
+          {
+            s += (s[1] == '>' ? 2 : 1); // if next char is closing tag, step 2 ; else 1
+          }
+          else
+          {
+            XSXML__THROW_ERROR(status_bad_pi, s);
+          }
 
           s += (*s == '>');
         }
