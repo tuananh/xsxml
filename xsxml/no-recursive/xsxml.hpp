@@ -1130,7 +1130,9 @@ struct xml_sax3_parser
           s = strconv_comment(s, endch);
           if (!s)
             XSXML__THROW_ERROR(status_bad_comment, value);
-          handler->xml_comment_cb(mark, s - mark - 3); // skip last 3 char -->
+          
+          // TODO(anh): I don't know why it's NULL terminated sometimes
+          handler->xml_comment_cb(mark, s - mark - (s[3] == 0 ? 2 : 3 ));
         }
         else
         {
