@@ -1578,6 +1578,7 @@ struct xml_sax3_parser
               XSXML__THROW_ERROR(status_bad_start_element, s);
 
             stk.pop();
+            handler->xml_end_attr_cb();
             handler->xml_end_element_cb(mark, s - mark);
             s += (*s == '>');
           }
@@ -1585,7 +1586,7 @@ struct xml_sax3_parser
           {
             // we stepped over null terminator, backtrack & handle closing tag
             --s;
-
+            handler->xml_end_attr_cb();
             if (endch != '>')
               XSXML__THROW_ERROR(status_bad_start_element, s);
           }
