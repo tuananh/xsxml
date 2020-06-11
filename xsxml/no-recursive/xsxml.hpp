@@ -1579,7 +1579,7 @@ struct xml_sax3_parser
 
             stk.pop();
             handler->xml_end_attr_cb();
-            handler->xml_end_element_cb(mark, s - mark);
+            handler->xml_end_element_cb(mark, s - mark - 1);
             s += (*s == '>');
           }
           else if (ch == 0)
